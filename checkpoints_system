@@ -1,0 +1,215 @@
+local DataStoreService=game:GetService("DataStoreService")
+local CheckpointStore=DataStoreService:GetDataStore("CheckPointStore")
+local PlayersService=game:GetService("Players")
+
+--[[]]--
+local Settings={
+	["CreateStageLeaderstat"]=true; 
+	--[[
+	If you turn CreateStageLeaderstat false, the script assumes
+	you already have a "Stage" value in a folder called "leaderstats"
+	--]]
+}
+--[[]]--
+local function SaveCurrent(Player)
+	local Leaderstats=Player:FindFirstChild("Leaderstats") or Player:FindFirstChild("leaderstats") or nil
+	if not Leaderstats then return end
+	local Stage=Leaderstats:FindFirstChild("Stage") or Leaderstats:FindFirstChild("stage") or nil
+	if not Stage then return end
+	local Success,Errormsg=pcall(function()
+		CheckpointStore:SetAsync(Player.UserId,{["Stage"]=Stage.Value})
+	end)
+	if not Success then warn(Errormsg) end
+end
+local function LoadCurrent(Player,StageInstance)
+	local Data
+	local Success,Errormsg=pcall(function()
+		Data=CheckpointStore:GetAsync(Player.UserId)
+	end)
+	if not Success then warn(Errormsg) return end
+	if Success and typeof(Data)~='nil' then
+		StageInstance.Value=Data.Stage
+	end
+end
+--[[
+if Settings.CreateStageTeams then
+	local function CreateCheckpointTeam(v)
+		local Team=Instance.new("Team")
+		Team.Name="Stage "..v.Name
+		Team.TeamColor=BrickColor.new()
+		Team.AutoAssignable=false
+		Team.Parent=game:GetService("Teams")
+	end
+	for _, v in pairs(workspace:WaitForChild("SavingCheckpoints"):GetChildren()) do 
+		CreateCheckpointTeam(v)
+	end
+	workspace["SavingCheckpoints"].ChildAdded:Connect(function(v)
+		CreateCheckpointTeam(v)
+	end)
+end
+--]]
+local function SetupCheckpointTouch()
+	local function GetStageCount(Player)
+		local Leaderstats=Player:FindFirstChild("Leaderstats") or Player:FindFirstChild("leaderstats") or nil
+		if not Leaderstats then return end
+		local Stage=Leaderstats:FindFirstChild("Stage") or Leaderstats:FindFirstChild("stage") or nil
+		if not Stage then return end
+		return Stage.Value,Stage
+	end
+	local function SetCheckpointTouch(v)
+		v.CanTouch=true
+		v.Enabled=false
+		local DelayTable={}
+		local ObjectNumber=tonumber(v.Name)
+		v.Touched:Connect(function(Hit)
+			local Character=Hit:FindFirstAncestorWhichIsA("Model") or nil
+			if typeof(Character)=='nil' then return end
+			if table.find(DelayTable,Character.Name) then
+				return
+			end
+			local Player=PlayersService:GetPlayerFromCharacter(Character) or nil
+			if typeof(Player)=='nil' then return end
+			if not Player:FindFirstChild("LoadedCheckpoint") then return end
+			local PlayerName=Player.Name
+			local CurrentStage,StageInstance=GetStageCount(Player)
+			if typeof(CurrentStage)~='nil' then
+				if ObjectNumber<=CurrentStage then return end
+				if (CurrentStage+1)<ObjectNumber then
+					return
+				end
+				StageInstance.Value=ObjectNumber
+				local CharacterName=Character.Name
+				table.insert(DelayTable,CharacterName)
+				task.wait(1)
+				for e, r in pairs(DelayTable) do 
+					if r==CharacterName then
+						table.remove(DelayTable,e)
+						break
+					end
+				end
+			end
+		end)
+	end
+	for _, v in pairs(workspace:WaitForChild("SavingCheckpoints"):GetChildren()) do 
+		SetCheckpointTouch(v)
+	end
+	workspace["SavingCheckpoints"].ChildAdded:Connect(function(v)
+		SetCheckpointTouch(v)
+	end)
+end
+SetupCheckpointTouch()
+PlayersService.PlayerAdded:Connect(function(Player)
+	local Leaderstats,Stage
+	if Settings.CreateStageLeaderstat then
+		Leaderstats=Instance.new("Folder")
+		Leaderstats.Name="leaderstats"
+		Leaderstats.Parent=Player
+		Stage=Instance.new("IntValue")
+		Stage.Name="Stage"
+		Stage.Value=1
+		Stage.Parent=Leaderstats
+	else
+		local Attempts=0
+		while true do 
+			if typeof(Leaderstats)=='nil' then
+				Leaderstats=Player:FindFirstChild("leaderstats") or Player:FindFirstChild("Leaderstats") or nil
+			end
+			if Attempts>=10 or typeof(Leaderstats)~='nil' then
+				break
+			end
+			Attempts=Attempts+1
+			task.wait(1)
+		end
+		if typeof(Leaderstats)=='nil' then
+			warn("Unable to Find Leaderstats: Checkpoint System")
+			return
+		end
+		Attempts=0
+		while true do 
+			if typeof(Stage)=='nil' then
+				Stage=Leaderstats:FindFirstChild("Stage") or Leaderstats:FindFirstChild("stage") or nil
+			end
+			if Attempts>=10 or typeof(Stage)~='nil' then
+				break
+			end
+			Attempts=Attempts+1
+			task.wait(1)
+		end
+		if typeof(Stage)=='nil' then
+			warn("Unable to Find "..[["Stage"]].." in Leaderstats: Checkpoint System")
+			return
+		end
+	end
+	if typeof(Stage)~=nil and typeof(Leaderstats)~='nil' then
+		local Folder=workspace["SavingCheckpoints"]
+		local function OnCharacter(Character)
+			local HumanoidRootPart,xyz
+			xyz=0
+			spawn(function()
+				while true do 
+					if typeof(HumanoidRootPart)=='nil' then
+						HumanoidRootPart=Character:FindFirstChild("HumanoidRootPart") or nil
+					end
+					if xyz>=10 or typeof(HumanoidRootPart)~='nil' or typeof(Character)=='nil' then 
+						break
+					end
+					xyz=xyz+1
+					task.wait(1)
+				end
+				if typeof(HumanoidRootPart)~='nil' then
+					local StageSpawn=workspace["SavingCheckpoints"]:FindFirstChild(Stage.Value) or nil
+					if typeof(StageSpawn)=='nil' then return end
+					HumanoidRootPart.CFrame=StageSpawn.CFrame*CFrame.new(0,5,0)
+				end
+			end)
+		end
+		local function OnNewStage(StageNumber)
+			if game:GetService("Teams"):FindFirstChild(tostring(StageNumber)) then
+				Player.Team=game:GetService("Teams")[tostring(StageNumber)]
+			end
+		end
+		if #Folder:GetChildren()==0 then
+			warn("Checkpoint Folder is Empty: Checkpoint System")
+			return
+		end
+		LoadCurrent(Player,Stage)
+		local Loaded=Instance.new("BoolValue")
+		Loaded.Name="LoadedCheckpoint"
+		Loaded.Parent=Player
+		if not Folder:FindFirstChild(Stage.Value) then
+			local Max,OBject=-1,nil;
+			for i, v in pairs(Folder:GetChildren()) do 
+				if tonumber(v.Name) and Max<tonumber(v.Name) then
+					Max=tonumber(v.Name)
+					OBject=v
+				end
+			end
+			if typeof(OBject)=='nil' then 
+				warn("Checkpoint For Stage "..Stage.Value.." Not Found: Checkpoint System")
+				return
+			end
+			Stage.Value=tonumber(OBject.Name)
+		end
+		OnNewStage(Stage.Value)
+		Stage:GetPropertyChangedSignal("Value"):Connect(function()
+			OnNewStage(Stage.Value)
+		end)
+		if Player.Character then OnCharacter(Player.Character) end
+		Player.CharacterAdded:Connect(function(Character)
+			OnCharacter(Character)
+		end)
+	end
+end)
+PlayersService.PlayerRemoving:Connect(function(Player)
+	if Player:FindFirstChild("LoadedCheckpoint") then
+		SaveCurrent(Player)
+	end
+end)
+game:BindToClose(function()
+	if game:GetService("RunService"):IsStudio() then task.wait(1) return end
+	for _, Player in pairs(PlayersService:GetPlayers()) do 
+		if Player:FindFirstChild("LoadedCheckpoint") then
+			SaveCurrent(Player)
+		end
+	end
+end)
