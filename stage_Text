@@ -1,3 +1,5 @@
+-- LUA
+
 local TextLabel = script.Parent.StageGui:FindFirstChild("StageText")
 
 local Stats = game.Players.LocalPlayer:FindFirstChild("leaderstats")
