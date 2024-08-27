@@ -1,0 +1,8 @@
+local TextLabel = script.Parent.StageGui:FindFirstChild("StageText")
+
+local Stats = game.Players.LocalPlayer:FindFirstChild("leaderstats")
+TextLabel.Text = "Stage: " .. Stats:FindFirstChild("Stage").Value
+
+while wait() do
+	TextLabel.Text = "Stage: " .. Stats:FindFirstChild("Stage").Value 
+end
